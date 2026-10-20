@@ -194,7 +194,8 @@ NAVIGATION_KEYS: dict[str, str] = {}
 
 # Help bar text displayed at bottom of TUI
 # HELP_BAR_TEXT = "↑↓-PgUp/PgDn-Home/End:Move Enter:Open /:Filter C:Clear T:Jump to today R:Hide/show removed ?:Help q/Q:Quit"
-HELP_BAR_TEXT = "↑↓-PgUp/PgDn-Home/End:Move Enter:Open /:Filters C:Clear D:Save default A/+:Add Del:Del-manual T:Today P:PDF X:XLSX S:Stats G:Station% ?:Help q/Q:Quit"
+# HELP_BAR_TEXT = "↑↓-PgUp/PgDn-Home/End:Move Enter:Open /:Filters C:Clear D:Save default A/+:Add Del:Del-manual T:Today P:PDF X:XLSX S:Stats G:Station% ?:Help q/Q:Quit"
+HELP_BAR_TEXT = "?:Help q/Q:Quit"
 
 
 # Configuration filenames and directory (shared constants)
