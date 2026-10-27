@@ -5,10 +5,11 @@ from openpyxl import load_workbook
 from ivs_sessions_browser.xlsx_export import _selected_stations, sessions_to_xlsx_bytes
 
 
-def test_selected_stations_keeps_station_status_and_spacing() -> None:
+def test_selected_stations_omits_removed_stations_and_keeps_spacing() -> None:
     assert _selected_stations("FtNnWzNs") == "Nn      Ns"
-    assert _selected_stations("FtNnWz [NsHb]") == "Nn    [Ns]"
-    assert _selected_stations("FtWz [NnNs]") == "[Nn]  [Ns]"
+    assert _selected_stations("FtNnWz [NsHb]") == "Nn"
+    assert _selected_stations("FtWz [NnNs]") == ""
+    assert _selected_stations("FtNsWz [NnHb]") == "        Ns"
     assert _selected_stations("FtWzNs [Hb]") == "        Ns"
     assert _selected_stations("FtWz [Hb]") == ""
 
@@ -28,7 +29,7 @@ def test_xlsx_stations_column_contains_only_nn_and_ns() -> None:
     assert sheet["B5"].value == " Stations "
     assert sheet["C5"].value == "Transfer done"
     assert sheet["A6"].value == "Week 44"
-    assert sheet["B6"].value == "Nn    [Ns]"
+    assert sheet["B6"].value == "Nn"
     assert sheet["C6"].value is None
     assert sheet.column_dimensions["A"].width == 11
     assert sheet.column_dimensions["B"].width == 10

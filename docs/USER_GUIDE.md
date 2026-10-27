@@ -513,7 +513,7 @@ PDF export reuses the same pretty-printed lines as text export and preserves the
 ./run_browser --year 2025 --output sessions.xlsx --format xlsx
 ```
 
-XLSX export writes monospaced spreadsheet cells with headers, filters, a frozen first row, clickable code links, and operator row colors. It adds a merged, framed `Week` column and a blank `Transfer done` column for manual tracking. Its fixed-width `STATIONS` column includes only `Nn` and `Ns`, positioned at opposite ends of the cell; brackets are preserved when either station is removed. Session code links follow the row color instead of using the spreadsheet application's default hyperlink color. `--append` is not supported for XLSX output.
+XLSX export writes monospaced spreadsheet cells with headers, filters, a frozen first row, clickable code links, and operator row colors. It adds a merged, framed `Week` column and a blank `Transfer done` column for manual tracking. Its fixed-width `STATIONS` column includes only active `Nn` and `Ns`, positioned at opposite ends of the cell; bracketed stations are removed from the export. Session code links follow the row color instead of using the spreadsheet application's default hyperlink color. `--append` is not supported for XLSX output.
 
 ### Append Mode
 ```bash

@@ -94,20 +94,13 @@ def _formula_string(value: str) -> str:
 
 
 def _selected_stations(value: str) -> str:
-    """Return a fixed-width Nn/Ns display with removed brackets preserved."""
+    """Return active Nn/Ns only; bracketed stations have been removed."""
 
-    removed_blocks = REMOVED_STATIONS_RE.findall(value)
     active_source = REMOVED_STATIONS_RE.sub("", value)
 
     active = set(STATION_TOKEN_RE.findall(active_source)) & EXPORTED_STATIONS
-    removed = {
-        token
-        for block in removed_blocks
-        for token in STATION_TOKEN_RE.findall(block)
-    } & EXPORTED_STATIONS
-
-    left = "[Nn]" if "Nn" in removed else "Nn" if "Nn" in active else ""
-    right = "[Ns]" if "Ns" in removed else "Ns" if "Ns" in active else ""
+    left = "Nn" if "Nn" in active else ""
+    right = "Ns" if "Ns" in active else ""
 
     if not left:
         return right.rjust(STATION_COLUMN_WIDTH) if right else ""
