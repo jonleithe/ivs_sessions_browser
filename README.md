@@ -270,7 +270,7 @@ Full details:
 
 - `--format text` writes the ANSI-colored textual listing.
 - `--format pdf` writes a monospaced PDF that preserves the existing header and row colors from the textual export.
-- `--format xlsx` writes spreadsheet cells with headers, filters, frozen first row, clickable code links, and operator row colors. Session code links are written so their font color follows the rest of the row.
+- `--format xlsx` writes monospaced spreadsheet cells with headers, filters, frozen first row, clickable code links, and operator row colors. Its fixed-width `STATIONS` column includes only `Nn` and `Ns`, positioned at opposite ends of the cell; brackets are preserved when either station is removed. Session code links are written so their font color follows the rest of the row.
 - `--append` only applies to text output; PDF and XLSX export always write a new file.
 
 Example:

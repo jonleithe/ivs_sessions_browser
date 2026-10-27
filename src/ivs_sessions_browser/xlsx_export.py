@@ -13,6 +13,7 @@ Description:    Holds helpers for exporting visible IVS sessions to XLSX.
 from __future__ import annotations
 
 import io
+import re
 from typing import BinaryIO
 
 from openpyxl import Workbook
@@ -35,13 +36,20 @@ COLOR_TO_HEX = {
 }
 INVISIBLE_ON_WHITE = {"white"}
 
+SHEET_FONT_NAME = "Courier New"
 HEADER_FILL    = PatternFill("solid", fgColor="FFD9EAF7")
-HEADER_FONT    = Font(bold=True, color="FF000000")
+HEADER_FONT    = Font(name=SHEET_FONT_NAME, bold=True, color="FF000000")
 HEADER_ALIGN   = Alignment(vertical="top", wrap_text=False)
 CELL_ALIGN     = Alignment(vertical="top", wrap_text=False)
 
 TABLE_START_ROW = 5
 TABLE_START_COL = 2
+
+EXPORTED_STATIONS = frozenset({"Nn", "Ns"})
+REMOVED_STATIONS_RE = re.compile(r"\[([^]]*)\]")
+STATION_TOKEN_RE = re.compile(r"[A-Z][a-z]")
+STATION_HEADER = " Stations "
+STATION_COLUMN_WIDTH = len(STATION_HEADER)
 
 
 def _selected_indices(pretty_print: str | list[str]) -> list[int]:
@@ -78,6 +86,29 @@ def _formula_string(value: str) -> str:
 # ─── END OF _formula_string() ────────────────────────────────────────────────
 
 
+def _selected_stations(value: str) -> str:
+    """Return a fixed-width Nn/Ns display with removed brackets preserved."""
+
+    removed_blocks = REMOVED_STATIONS_RE.findall(value)
+    active_source = REMOVED_STATIONS_RE.sub("", value)
+
+    active = set(STATION_TOKEN_RE.findall(active_source)) & EXPORTED_STATIONS
+    removed = {
+        token
+        for block in removed_blocks
+        for token in STATION_TOKEN_RE.findall(block)
+    } & EXPORTED_STATIONS
+
+    left = "[Nn]" if "Nn" in removed else "Nn" if "Nn" in active else ""
+    right = "[Ns]" if "Ns" in removed else "Ns" if "Ns" in active else ""
+
+    if not left:
+        return right.rjust(STATION_COLUMN_WIDTH) if right else ""
+    if not right:
+        return left
+    return f"{left}{right:>{STATION_COLUMN_WIDTH - len(left)}}"
+
+
 def sessions_to_xlsx_bytes(
     rows: list[D.Row],
     pretty_print: str | list[str],
@@ -89,6 +120,7 @@ def sessions_to_xlsx_bytes(
     """
 
     selected_indices = _selected_indices(pretty_print)
+    stations_idx = D.FIELD_INDEX.get("stations")
 
     wb = Workbook()
     ws = wb.active
@@ -96,7 +128,8 @@ def sessions_to_xlsx_bytes(
     ws.freeze_panes = ws.cell(row=TABLE_START_ROW + 1, column=TABLE_START_COL).coordinate
 
     for col_num, idx in enumerate(selected_indices, start=TABLE_START_COL):
-        cell = ws.cell(row=TABLE_START_ROW, column=col_num, value=D.HEADERS[idx][0])
+        header = STATION_HEADER if idx == stations_idx else D.HEADERS[idx][0]
+        cell = ws.cell(row=TABLE_START_ROW, column=col_num, value=header)
         cell.fill = HEADER_FILL
         cell.font = HEADER_FONT
         cell.alignment = HEADER_ALIGN
@@ -105,13 +138,15 @@ def sessions_to_xlsx_bytes(
     display_values: dict[tuple[int, int], str] = {}
     for row_num, (values, url, meta) in enumerate(rows, start=TABLE_START_ROW + 1):
         font_color = _row_font_color(values, operator_bindings, operator_colors)
-        row_font = Font(color=font_color)
+        row_font = Font(name=SHEET_FONT_NAME, color=font_color)
 
         for col_num, idx in enumerate(selected_indices, start=TABLE_START_COL):
             value = values[idx].strip()
             marker = Tui.type_marker(meta) if idx == type_idx else ""
             if marker:
                 value = f"{value} {marker}".strip()
+            if idx == stations_idx:
+                value = _selected_stations(value)
 
             display_values[(row_num, col_num)] = value
             if idx == D.FIELD_INDEX.get("code") and url:
@@ -129,14 +164,14 @@ def sessions_to_xlsx_bytes(
     ws.auto_filter.ref = f"{filter_start}:{filter_end}"
 
     for col_num, idx in enumerate(selected_indices, start=TABLE_START_COL):
-        width = D.HEADERS[idx][1] + 2
+        is_stations = idx == stations_idx
+        width = STATION_COLUMN_WIDTH if is_stations else D.HEADERS[idx][1] + 2
         max_content_width = max(
             len(display_values.get((row_num, col_num), str(ws.cell(row=row_num, column=col_num).value or "")))
             for row_num in range(TABLE_START_ROW, ws.max_row + 1)
         )
-        ws.column_dimensions[get_column_letter(col_num)].width = min(
-            max(width, max_content_width + 2),
-            80,
+        ws.column_dimensions[get_column_letter(col_num)].width = (
+            width if is_stations else min(max(width, max_content_width + 2), 80)
         )
 
     buffer = io.BytesIO()
