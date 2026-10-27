@@ -3,6 +3,8 @@
 - XLSX exports now use a monospaced font throughout. The `Stations` column is
   focused on `Nn` and `Ns`, placing them at opposite ends of a compact,
   fixed-width cell while preserving removed-station brackets.
+- XLSX exports again include a merged, framed ISO `Week` column and a blank
+  `Transfer done` column for manual tracking.
 - Sessions can now be added manually directly in the TUI with `A` or `+`.
   Fill Type, Code, Start, Dur, Stations, Ops, and Corr; `Enter` saves and
   `Esc` cancels.

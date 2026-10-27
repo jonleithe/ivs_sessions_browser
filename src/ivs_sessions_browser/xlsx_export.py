@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import io
 import re
+from datetime import datetime
 from typing import BinaryIO
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from . import defs as D
@@ -41,6 +42,10 @@ HEADER_FILL    = PatternFill("solid", fgColor="FFD9EAF7")
 HEADER_FONT    = Font(name=SHEET_FONT_NAME, bold=True, color="FF000000")
 HEADER_ALIGN   = Alignment(vertical="top", wrap_text=False)
 CELL_ALIGN     = Alignment(vertical="top", wrap_text=False)
+WEEK_ALIGN     = Alignment(horizontal="center", vertical="center", wrap_text=False)
+
+MEDIUM_SIDE = Side(style="medium", color="FF000000")
+THIN_SIDE = Side(style="thin", color="FF000000")
 
 TABLE_START_ROW = 5
 TABLE_START_COL = 2
@@ -50,6 +55,8 @@ REMOVED_STATIONS_RE = re.compile(r"\[([^]]*)\]")
 STATION_TOKEN_RE = re.compile(r"[A-Z][a-z]")
 STATION_HEADER = " Stations "
 STATION_COLUMN_WIDTH = len(STATION_HEADER)
+WEEK_COLUMN_WIDTH = 11
+TRANSFER_COLUMN_WIDTH = 14
 
 
 def _selected_indices(pretty_print: str | list[str]) -> list[int]:
@@ -109,6 +116,69 @@ def _selected_stations(value: str) -> str:
     return f"{left}{right:>{STATION_COLUMN_WIDTH - len(left)}}"
 
 
+def _iso_week(start_value: str) -> tuple[int, int] | None:
+    """Return the ISO year/week from the displayed session start value."""
+
+    try:
+        iso = datetime.fromisoformat(start_value.strip()).isocalendar()
+    except ValueError:
+        return None
+    return iso.year, iso.week
+
+
+def _apply_week_frames(
+    ws,
+    week_keys: list[tuple[int, int] | None],
+    last_column: int,
+) -> None:
+    """Merge and frame consecutive rows belonging to the same ISO week."""
+
+    if not week_keys:
+        return
+
+    group_start = TABLE_START_ROW + 1
+    for offset in range(1, len(week_keys) + 1):
+        at_end = offset == len(week_keys)
+        changed = not at_end and week_keys[offset] != week_keys[offset - 1]
+        if not at_end and not changed:
+            continue
+
+        group_end = TABLE_START_ROW + offset
+        if group_end > group_start:
+            ws.merge_cells(
+                start_row=group_start,
+                start_column=1,
+                end_row=group_end,
+                end_column=1,
+            )
+
+        for row_num in range(group_start, group_end + 1):
+            week_cell = ws.cell(row=row_num, column=1)
+            week_cell.border = Border(
+                left=MEDIUM_SIDE,
+                right=MEDIUM_SIDE,
+                top=MEDIUM_SIDE if row_num == group_start else Side(),
+                bottom=MEDIUM_SIDE if row_num == group_end else Side(),
+            )
+
+            for col_num in range(TABLE_START_COL, last_column):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.border = Border(
+                    top=MEDIUM_SIDE if row_num == group_start else Side(),
+                    bottom=MEDIUM_SIDE if row_num == group_end else Side(),
+                )
+
+            transfer_cell = ws.cell(row=row_num, column=last_column)
+            transfer_cell.border = Border(
+                left=THIN_SIDE,
+                right=MEDIUM_SIDE,
+                top=MEDIUM_SIDE if row_num == group_start else THIN_SIDE,
+                bottom=MEDIUM_SIDE if row_num == group_end else THIN_SIDE,
+            )
+
+        group_start = group_end + 1
+
+
 def sessions_to_xlsx_bytes(
     rows: list[D.Row],
     pretty_print: str | list[str],
@@ -125,7 +195,13 @@ def sessions_to_xlsx_bytes(
     wb = Workbook()
     ws = wb.active
     ws.title = "Sessions"
-    ws.freeze_panes = ws.cell(row=TABLE_START_ROW + 1, column=TABLE_START_COL).coordinate
+    ws.freeze_panes = ws.cell(row=TABLE_START_ROW + 1, column=1).coordinate
+
+    week_header = ws.cell(row=TABLE_START_ROW, column=1, value="Week")
+    week_header.fill = HEADER_FILL
+    week_header.font = HEADER_FONT
+    week_header.alignment = HEADER_ALIGN
+    week_header.border = Border(left=MEDIUM_SIDE, top=MEDIUM_SIDE)
 
     for col_num, idx in enumerate(selected_indices, start=TABLE_START_COL):
         header = STATION_HEADER if idx == stations_idx else D.HEADERS[idx][0]
@@ -133,12 +209,32 @@ def sessions_to_xlsx_bytes(
         cell.fill = HEADER_FILL
         cell.font = HEADER_FONT
         cell.alignment = HEADER_ALIGN
+        cell.border = Border(top=MEDIUM_SIDE)
+
+    transfer_col = TABLE_START_COL + len(selected_indices)
+    transfer_header = ws.cell(row=TABLE_START_ROW, column=transfer_col, value="Transfer done")
+    transfer_header.fill = HEADER_FILL
+    transfer_header.font = HEADER_FONT
+    transfer_header.alignment = HEADER_ALIGN
+    transfer_header.border = Border(right=MEDIUM_SIDE, top=MEDIUM_SIDE)
 
     type_idx = D.FIELD_INDEX.get("type", 1)
+    start_idx = D.FIELD_INDEX.get("start", 3)
     display_values: dict[tuple[int, int], str] = {}
+    week_keys: list[tuple[int, int] | None] = []
     for row_num, (values, url, meta) in enumerate(rows, start=TABLE_START_ROW + 1):
         font_color = _row_font_color(values, operator_bindings, operator_colors)
         row_font = Font(name=SHEET_FONT_NAME, color=font_color)
+
+        week_key = _iso_week(values[start_idx])
+        week_keys.append(week_key)
+        week_cell = ws.cell(
+            row=row_num,
+            column=1,
+            value=f"Week {week_key[1]}" if week_key else "",
+        )
+        week_cell.font = row_font
+        week_cell.alignment = WEEK_ALIGN
 
         for col_num, idx in enumerate(selected_indices, start=TABLE_START_COL):
             value = values[idx].strip()
@@ -156,12 +252,20 @@ def sessions_to_xlsx_bytes(
             cell.font = row_font
             cell.alignment = CELL_ALIGN
 
-    filter_start = ws.cell(row=TABLE_START_ROW, column=TABLE_START_COL).coordinate
+        transfer_cell = ws.cell(row=row_num, column=transfer_col, value=None)
+        transfer_cell.font = row_font
+        transfer_cell.alignment = CELL_ALIGN
+
+    _apply_week_frames(ws, week_keys, transfer_col)
+
+    filter_start = ws.cell(row=TABLE_START_ROW, column=1).coordinate
     filter_end = ws.cell(
         row=max(TABLE_START_ROW, ws.max_row),
-        column=TABLE_START_COL + len(selected_indices) - 1,
+        column=transfer_col,
     ).coordinate
     ws.auto_filter.ref = f"{filter_start}:{filter_end}"
+
+    ws.column_dimensions[get_column_letter(1)].width = WEEK_COLUMN_WIDTH
 
     for col_num, idx in enumerate(selected_indices, start=TABLE_START_COL):
         is_stations = idx == stations_idx
@@ -173,6 +277,8 @@ def sessions_to_xlsx_bytes(
         ws.column_dimensions[get_column_letter(col_num)].width = (
             width if is_stations else min(max(width, max_content_width + 2), 80)
         )
+
+    ws.column_dimensions[get_column_letter(transfer_col)].width = TRANSFER_COLUMN_WIDTH
 
     buffer = io.BytesIO()
     wb.save(buffer)
