@@ -1,0 +1,43 @@
+name: Recover v4.0.16 GitHub release
+
+on:
+  push:
+    branches:
+      - v4
+    paths:
+      - ".github/workflows/release-v4.0.16.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish v4.0.16 GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out v4.0.16
+        uses: actions/checkout@v4
+        with:
+          ref: v4.0.16
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create v4.0.16 dist/*
+          --verify-tag
+          --generate-notes
+          --title v4.0.16
